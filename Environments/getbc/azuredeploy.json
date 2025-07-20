@@ -28,8 +28,9 @@
 		},
         "OperatingSystem": {
             "type": "string",
-            "defaultValue": "Windows Server 2022",
+            "defaultValue": "Windows Server 2025",
             "allowedValues": [
+                "Windows Server 2025",		    
                 "Windows Server 2022",
                 "Windows Server 2019"
             ],
