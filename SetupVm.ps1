@@ -141,19 +141,42 @@ if ($AddTraefik -eq "Yes") {
 }
 
 if ("$ContactEMailForLetsEncrypt" -ne "" -and $AddTraefik -ne "Yes") {
-if (-not (Get-InstalledModule ACME-PS -ErrorAction SilentlyContinue)) {
-
-    AddToStatus "Installing ACME-PS PowerShell Module"
-    Install-Module -Name ACME-PS -RequiredVersion "1.5.2" -AllowPrerelease -Force
+    if (-not (Get-InstalledModule ACME-PS -ErrorAction SilentlyContinue)) {
+        AddToStatus "Installing ACME-PS PowerShell Module"
+        Install-Module -Name ACME-PS -RequiredVersion "1.5.2" -AllowPrerelease -Force
+    }
 
     AddToStatus "Using Lets Encrypt certificate"
     # Use Lets encrypt
     # If rate limits are hit, log an error and revert to Self Signed
-    try {
-        $plainPfxPassword = [GUID]::NewGuid().ToString()
-        $certificatePfxFilename = "c:\ProgramData\bccontainerhelper\certificate.pfx"
-        New-LetsEncryptCertificate -ContactEMailForLetsEncrypt $ContactEMailForLetsEncrypt -publicDnsName $publicDnsName -CertificatePfxFilename $certificatePfxFilename -CertificatePfxPassword (ConvertTo-SecureString -String $plainPfxPassword -AsPlainText -Force)
+    $plainPfxPassword = [GUID]::NewGuid().ToString()
+    $certificatePfxFilename = "c:\ProgramData\bccontainerhelper\certificate.pfx"
+    $acmeStateDir = Join-Path $bcContainerHelperConfig.hostHelperFolder "acmeState"
+    $letsEncryptCertificateCreated = $false
+    foreach ($attempt in 1..2) {
+        try {
+            $certificatePfxPassword = ConvertTo-SecureString -String $plainPfxPassword -AsPlainText -Force
+            if (Test-Path (Join-Path $acmeStateDir "Account.xml")) {
+                # New-LetsEncryptCertificate fails if the ACME account already exists (e.g. from a previous attempt)
+                Renew-LetsEncryptCertificate -publicDnsName $publicDnsName -certificatePfxFilename $certificatePfxFilename -certificatePfxPassword $certificatePfxPassword
+            }
+            else {
+                Remove-Item -Path $acmeStateDir -Recurse -Force -ErrorAction Ignore
+                New-LetsEncryptCertificate -ContactEMailForLetsEncrypt $ContactEMailForLetsEncrypt -publicDnsName $publicDnsName -CertificatePfxFilename $certificatePfxFilename -CertificatePfxPassword $certificatePfxPassword
+            }
+            $letsEncryptCertificateCreated = $true
+            break
+        }
+        catch {
+            AddToStatus -color Red "Lets Encrypt attempt $attempt failed: $($_.Exception.GetType().FullName): $($_.Exception.Message)"
+            if ($attempt -lt 2) {
+                AddToStatus "Retrying in 60 seconds"
+                Start-Sleep -Seconds 60
+            }
+        }
+    }
 
+    if ($letsEncryptCertificateCreated) {
         # Override SetupCertificate.ps1 in container
         ('if ([int](get-item "C:\Program Files\Microsoft Dynamics NAV\*").Name -le 100) {
     Write-Host "WARNING: This version doesn''t support LetsEncrypt certificates, reverting to self-signed"
@@ -180,21 +203,49 @@ if ($dnsidentity.StartsWith("*")) {
 }
 ') | Set-Content "c:\myfolder\InstallCertificate.ps1"
 
-        # Create RenewCertificate script
-        ('$CertificatePfxPassword = ConvertTo-SecureString -String "'+$plainPfxPassword+'" -AsPlainText -Force
-$certificatePfxFile = "'+$certificatePfxFilename+'"
-$publicDnsName = "'+$publicDnsName+'"
-Renew-LetsEncryptCertificate -publicDnsName $publicDnsName -certificatePfxFilename $certificatePfxFile -certificatePfxPassword $certificatePfxPassword
-Start-Sleep -seconds 30
-Restart-NavContainer -containerName "'+$containerName+'" -renewBindings
+        # Create RenewCertificate script, only renews when the certificate expires within 30 days
+        # Renew-LetsEncryptCertificate removes the pfx before ordering, so renew into a temporary file
+        ('$ErrorActionPreference = "Stop"
+Start-Transcript -Path "c:\demo\RenewCertificate.log" -Append | Out-Null
+try {
+    $CertificatePfxPassword = ConvertTo-SecureString -String "'+$plainPfxPassword+'" -AsPlainText -Force
+    $certificatePfxFile = "'+$certificatePfxFilename+'"
+    $publicDnsName = "'+$publicDnsName+'"
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certificatePfxFile, $CertificatePfxPassword)
+    if ($cert.NotAfter -gt (Get-Date).AddDays(30)) {
+        Write-Host "Certificate valid until $($cert.NotAfter), no renewal needed"
+    }
+    else {
+        Import-Module BcContainerHelper -DisableNameChecking
+        $newCertificatePfxFile = "$certificatePfxFile.new"
+        Renew-LetsEncryptCertificate -publicDnsName $publicDnsName -certificatePfxFilename $newCertificatePfxFile -certificatePfxPassword $CertificatePfxPassword
+        Move-Item -Path $newCertificatePfxFile -Destination $certificatePfxFile -Force
+        Start-Sleep -seconds 30
+        Restart-BcContainer -containerName "'+$containerName+'" -renewBindings
+    }
+}
+finally {
+    Stop-Transcript | Out-Null
+}
 ') | Set-Content "c:\demo\RenewCertificate.ps1"
 
-    } catch {
-        AddToStatus -color Red $_.Exception.Message
+        try {
+            AddToStatus "Registering scheduled task RenewLetsEncryptCertificate"
+            $renewAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File c:\demo\RenewCertificate.ps1"
+            $renewStartupTrigger = New-ScheduledTaskTrigger -AtStartup
+            $renewStartupTrigger.Delay = "PT5M"
+            $renewDailyTrigger = New-ScheduledTaskTrigger -Daily -At "12:00"
+            $renewPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+            $renewSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+            Register-ScheduledTask -TaskName "RenewLetsEncryptCertificate" -Action $renewAction -Trigger $renewStartupTrigger,$renewDailyTrigger -Principal $renewPrincipal -Settings $renewSettings -Force | Out-Null
+        }
+        catch {
+            AddToStatus -color Red "Unable to register scheduled task RenewLetsEncryptCertificate: $($_.Exception.Message)"
+        }
+    }
+    else {
         AddToStatus -color Red "Reverting to Self Signed Certificate"
     }
-
-}
 }
 
 if ("$WinRmAccess" -ne "") {

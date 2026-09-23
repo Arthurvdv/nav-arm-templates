@@ -224,11 +224,22 @@ if ($WindowsInstallationType -eq "Server") {
     Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServer,IIS-ASPNET45,IIS-BasicAuthentication -All -NoRestart | Out-Null
 }
 
+# Authentication sections are locked in applicationHost.config by default, web.config needs them unlocked (otherwise HTTP 500.19)
+"anonymousAuthentication","basicAuthentication" | ForEach-Object {
+    $appcmdOutput = & "$env:windir\system32\inetsrv\appcmd.exe" unlock config "-section:system.webServer/security/authentication/$_" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        AddToStatus -color Red "Unable to unlock IIS section $($_): $appcmdOutput"
+    }
+}
+
 Remove-Item -Path "C:\inetpub\wwwroot\iisstart.*" -Force
 Download-File -sourceUrl "$($scriptPath)Default.aspx"            -destinationFile "C:\inetpub\wwwroot\default.aspx"
 Download-File -sourceUrl "$($scriptPath)line.png"                -destinationFile "C:\inetpub\wwwroot\line.png"
 Download-File -sourceUrl "$($scriptPath)Microsoft.png"           -destinationFile "C:\inetpub\wwwroot\Microsoft.png"
 Download-File -sourceUrl "$($scriptPath)web.config"              -destinationFile "C:\inetpub\wwwroot\web.config"
+# Allow anonymous access to .well-known (Let's Encrypt HTTP-01 challenge), the rest of the site requires basic authentication
+New-Item -Path "C:\inetpub\wwwroot\.well-known" -ItemType Directory -ErrorAction Ignore | Out-Null
+Download-File -sourceUrl "$($scriptPath)wellknown.web.config"    -destinationFile "C:\inetpub\wwwroot\.well-known\web.config"
 if ($requestToken) {
     Download-File -sourceUrl "$($scriptPath)request.aspx"            -destinationFile "C:\inetpub\wwwroot\request.aspx"
 }
