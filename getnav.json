@@ -39,94 +39,51 @@
             "type": "string",
             "defaultValue": "Windows Server 2022",
             "allowedValues": [
+                "Windows Server 2025",
                 "Windows Server 2022",
                 "Windows Server 2019"
             ],
             "metadata": {
-                "Description": "Select the Operating System of the VM"
+                "Description": "Select the Operating System of the VM. Windows Server 2025 and 2022 use Gen2 images with Trusted Launch. Windows Server 2019 uses a Gen1 image and requires a v5 VM size (v6/v7 sizes are Gen2 only)."
             }
         },
         "vmSize": {
             "type": "string",
-            "defaultValue": "Standard_D4s_v3",
+            "defaultValue": "Standard_D4s_v6",
             "allowedValues": [
-                "Standard_D2_v2",
-                "Standard_D3_v2",
-                "Standard_D4_v2",
-                "Standard_D5_v2",
-                "Standard_D2_v3",
-                "Standard_D4_v3",
-                "Standard_D8_v3",
-                "Standard_D16_v3",
-                "Standard_D32_v3",
-                "Standard_D48_v3",
-                "Standard_D64_v3",
-                "Standard_D2s_v3",
-                "Standard_D4s_v3",
-                "Standard_D8s_v3",
-                "Standard_D16s_v3",
-                "Standard_D32s_v3",
-                "Standard_D48s_v3",
-                "Standard_D64s_v3",
-                "Standard_D2_v4",
-                "Standard_D4_v4",
-                "Standard_D8_v4",
-                "Standard_D16_v4",
-                "Standard_D32_v4",
-                "Standard_D48_v4",
-                "Standard_D64_v4",
-                "Standard_D2s_v4",
-                "Standard_D4s_v4",
-                "Standard_D8s_v4",
-                "Standard_D16s_v4",
-                "Standard_D32s_v4",
-                "Standard_D48s_v4",
-                "Standard_D64s_v4",
-                "Standard_D2a_v4",
-                "Standard_D4a_v4",
-                "Standard_D8a_v4",
-                "Standard_D16a_v4",
-                "Standard_D32a_v4",
-                "Standard_D48a_v4",
-                "Standard_D64a_v4",
-                "Standard_D2as_v4",
-                "Standard_D4as_v4",
-                "Standard_D8as_v4",
-                "Standard_D16as_v4",
-                "Standard_D32as_v4",
-                "Standard_D48as_v4",
-                "Standard_D64as_v4",
-                "Standard_D2_v5",
-                "Standard_D4_v5",
-                "Standard_D8_v5",
-                "Standard_D16_v5",
-                "Standard_D32_v5",
-                "Standard_D48_v5",
-                "Standard_D64_v5",
-                "Standard_D2s_v5",
                 "Standard_D4s_v5",
                 "Standard_D8s_v5",
                 "Standard_D16s_v5",
-                "Standard_D32s_v5",
-                "Standard_D48s_v5",
-                "Standard_D64s_v5",
-                "Standard_D2a_v5",
-                "Standard_D4a_v5",
-                "Standard_D8a_v5",
-                "Standard_D16a_v5",
-                "Standard_D32a_v5",
-                "Standard_D48a_v5",
-                "Standard_D64a_v5",
-                "Standard_D2as_v5",
                 "Standard_D4as_v5",
                 "Standard_D8as_v5",
                 "Standard_D16as_v5",
-                "Standard_D32as_v5",
-                "Standard_D48as_v5",
-                "Standard_D64as_v5"
+                "Standard_D4s_v6",
+                "Standard_D8s_v6",
+                "Standard_D16s_v6",
+                "Standard_D4as_v6",
+                "Standard_D8as_v6",
+                "Standard_D16as_v6",
+                "Standard_D4s_v7",
+                "Standard_D8s_v7",
+                "Standard_D16s_v7",
+                "Standard_D4as_v7",
+                "Standard_D8as_v7",
+                "Standard_D16as_v7",
+                "Standard_E4s_v5",
+                "Standard_E8s_v5",
+                "Standard_E16s_v5",
+                "Standard_E4s_v6",
+                "Standard_E8s_v6",
+                "Standard_E16s_v6",
+                "Standard_E4as_v6",
+                "Standard_E8as_v6",
+                "Standard_E16as_v6",
+                "Standard_E4as_v7",
+                "Standard_E8as_v7",
+                "Standard_E16as_v7"
             ],
             "metadata": {
-                "Description": "Select the VM size of the deployment"
+                "Description": "Select the VM size of the deployment. 4 vCPU / 16 GB (e.g. Standard_D4s_v6) is the practical minimum for a BC container; Standard_E4as_v6 (4 vCPU / 32 GB) is a more comfortable choice. v6/v7 sizes are Gen2/NVMe only and cannot be used with Windows Server 2019 (use a v5 size). Not every size is available in every region; the portal shows an error if the selected size is not available."
             }
         },
         "ContainerName": {
@@ -335,9 +292,23 @@
         "AddTraefik": "[parameters('AddTraefik')]",
         "style": "demo",
         "OperatingSystem": "[parameters('OperatingSystem')]",
-        "imagePublisher": "[if(equals(variables('OperatingSystem'),'Windows 11'),'MicrosoftWindowsDesktop','MicrosoftWindowsServer')]",
-        "imageOffer": "[if(equals(variables('OperatingSystem'),'Windows 11'),'Windows-11',if(equals(variables('OperatingSystem'),'Windows Server 2022'),'windowsserver2022','WindowsServer'))]",
-        "imageSku": "[if(equals(variables('OperatingSystem'),'Windows 11'),'win11-21h2-pro',if(equals(variables('OperatingSystem'),'Windows Server 2022'),'2022-datacenter',if(equals(variables('OperatingSystem'),'Windows Server 2019'),'2019-Datacenter','2019-Datacenter-with-containers')))]",
+        "osImages": {
+            "Windows Server 2025": { "offer": "WindowsServer", "sku": "2025-datacenter-g2", "gen2": true },
+            "Windows Server 2022": { "offer": "windowsserver2022", "sku": "2022-datacenter-g2", "gen2": true },
+            "Windows Server 2019": { "offer": "WindowsServer", "sku": "2019-Datacenter", "gen2": false }
+        },
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "[variables('osImages')[variables('OperatingSystem')].offer]",
+        "imageSku": "[variables('osImages')[variables('OperatingSystem')].sku]",
+        "isGen2": "[variables('osImages')[variables('OperatingSystem')].gen2]",
+        "securityProfile": {
+            "securityType": "TrustedLaunch",
+            "uefiSettings": {
+                "secureBootEnabled": true,
+                "vTpmEnabled": true
+            }
+        },
+        "diskControllerType": "[if(or(contains(variables('vmSize'),'_v6'),contains(variables('vmSize'),'_v7')),'NVMe','SCSI')]",
         "storageAccountType": "Standard_LRS",
         "OSDiskName": "[concat(variables('vmName'),'_osdisk')]",
         "publicIPAddressName": "[concat(variables('vmName'), '_pip')]",
@@ -797,7 +768,7 @@
             }
         },
         {
-            "apiVersion": "2018-10-01",
+            "apiVersion": "2026-04-01",
             "type": "Microsoft.Compute/virtualMachines",
             "name": "[variables('server1Name')]",
             "location": "[resourceGroup().location]",
@@ -810,6 +781,7 @@
                 "hardwareProfile": {
                     "vmSize": "[variables('vmSize')]"
                 },
+                "securityProfile": "[if(variables('isGen2'), variables('securityProfile'), null())]",
                 "osProfile": {
                     "computerName": "[variables('server1Name')]",
                     "adminUsername": "[variables('vmAdminUsername')]",
@@ -820,6 +792,7 @@
                     }
                 },
                 "storageProfile": {
+                    "diskControllerType": "[variables('diskControllerType')]",
                     "imageReference": {
                         "publisher": "[variables('imagePublisher')]",
                         "offer": "[variables('imageOffer')]",
@@ -871,7 +844,7 @@
             ]
         },
         {
-            "apiVersion": "2015-06-15",
+            "apiVersion": "2026-04-01",
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(variables('server1Name'),'/vmextension1')]",
             "location": "[resourceGroup().location]",
@@ -890,10 +863,11 @@
                 "settings": {
                     "fileUris": [
                         "[uri(deployment().properties.templateLink.uri, 'initialize.ps1')]"
-                    ],
-                    "commandToExecute": "[concat(variables('ScriptCommandToExecute'),'initialize.ps1',' -TemplateLink \"',deployment().properties.templateLink.uri,'\" -hostName \"',reference(variables('publicIPAddressName')).dnsSettings.fqdn,'\" -AcceptInsiderEula \"',variables('AcceptInsiderEula'),'\" -RemoteDesktopAccess \"',variables('RdpAddresses'),'\" -Isolation \"',variables('Isolation'),'\" -VMAdminUsername \"',variables('vmAdminUsername'),'\" -NAVAdminUsername \"',variables('navAdminUsername'),'\" -AzureSQLAdminUsername \"',variables('azureSqlAdminUsername'),'\" -AdminPassword \"',replace(variables('adminPassword'),'\"','\\\"'),'\" -artifactUrl \"',variables('artifactUrl'),'\" -navDockerImage \"',variables('navDockerImage'),'\" -registryUsername \"',variables('registryUsername'),'\" -registryPassword \"',replace(variables('registryPassword'),'\"','\\\"'),'\" -LicenseFileUri \"',variables('licenseFileUri'),'\" -SQLServerType \"',variables('SQLServerType'),'\" -AzureSqlServer \"',if(equals(variables('SQLServerType'),'AzureSQL'),variables('azureSqlServerDnsName'),''),'\" -AppBacpacUri \"',variables('AppBacpacUri'),'\" -TenantBacpacUri \"',variables('TenantBacpacUri'),'\" -IncludeAppUris \"',variables('IncludeAppUris'),'\" -CertificatePfxUrl \"',variables('CertificatePfxUrl'),'\" -CertificatePfxPassword \"',replace(variables('CertificatePfxPassword'),'\"','\\\"'),'\" -PublicDnsName \"',variables('PublicDnsName'),'\" -Multitenant \"',variables('Multitenant'),'\" -AssignPremiumPlan \"',variables('AssignPremiumPlan'),'\" -CreateTestUsers \"',variables('CreateTestUsers'),'\" -CreateAadUsers \"',variables('CreateAadUsers'),'\" -EnableSymbolLoading \"',variables('EnableSymbolLoading'),'\" -IncludeCSIDE \"',variables('IncludeCSIDE'),'\" -IncludeAL \"',variables('IncludeAL'),'\" -ClickOnce \"',variables('ClickOnce'),'\" -EnableTaskScheduler \"',variables('EnableTaskScheduler'),'\" -Office365UserName \"',variables('Office365UserName'),'\" -Office365Password \"',replace(variables('Office365Password'),'\"','\\\"'),'\" -BingMapsKey \"',variables('BingMapsKey'),'\" -finalSetupScriptUrl \"',variables('finalSetupScriptUrl'),'\" -RunWindowsUpdate \"',variables('RunWindowsUpdate'),'\" -ContactEMailForLetsEncrypt \"',variables('ContactEMailForLetsEncrypt'),'\" -style \"',variables('style'),'\" -nchbranch \"',variables('nchbranch'),'\" -containerName \"',variables('containerName'),'\" -AddTraefik \"',variables('AddTraefik'),'\"')]"
+                    ]
                 },
-                "protectedSettings": {}
+                "protectedSettings": {
+                    "commandToExecute": "[concat(variables('ScriptCommandToExecute'),'initialize.ps1',' -TemplateLink \"',deployment().properties.templateLink.uri,'\" -hostName \"',reference(variables('publicIPAddressName')).dnsSettings.fqdn,'\" -AcceptInsiderEula \"',variables('AcceptInsiderEula'),'\" -RemoteDesktopAccess \"',variables('RdpAddresses'),'\" -Isolation \"',variables('Isolation'),'\" -VMAdminUsername \"',variables('vmAdminUsername'),'\" -NAVAdminUsername \"',variables('navAdminUsername'),'\" -AzureSQLAdminUsername \"',variables('azureSqlAdminUsername'),'\" -AdminPassword \"',replace(variables('adminPassword'),'\"','\\\"'),'\" -artifactUrl \"',variables('artifactUrl'),'\" -navDockerImage \"',variables('navDockerImage'),'\" -registryUsername \"',variables('registryUsername'),'\" -registryPassword \"',replace(variables('registryPassword'),'\"','\\\"'),'\" -LicenseFileUri \"',variables('licenseFileUri'),'\" -SQLServerType \"',variables('SQLServerType'),'\" -AzureSqlServer \"',if(equals(variables('SQLServerType'),'AzureSQL'),variables('azureSqlServerDnsName'),''),'\" -AppBacpacUri \"',variables('AppBacpacUri'),'\" -TenantBacpacUri \"',variables('TenantBacpacUri'),'\" -IncludeAppUris \"',variables('IncludeAppUris'),'\" -CertificatePfxUrl \"',variables('CertificatePfxUrl'),'\" -CertificatePfxPassword \"',replace(variables('CertificatePfxPassword'),'\"','\\\"'),'\" -PublicDnsName \"',variables('PublicDnsName'),'\" -Multitenant \"',variables('Multitenant'),'\" -AssignPremiumPlan \"',variables('AssignPremiumPlan'),'\" -CreateTestUsers \"',variables('CreateTestUsers'),'\" -CreateAadUsers \"',variables('CreateAadUsers'),'\" -EnableSymbolLoading \"',variables('EnableSymbolLoading'),'\" -IncludeCSIDE \"',variables('IncludeCSIDE'),'\" -IncludeAL \"',variables('IncludeAL'),'\" -ClickOnce \"',variables('ClickOnce'),'\" -EnableTaskScheduler \"',variables('EnableTaskScheduler'),'\" -Office365UserName \"',variables('Office365UserName'),'\" -Office365Password \"',replace(variables('Office365Password'),'\"','\\\"'),'\" -BingMapsKey \"',variables('BingMapsKey'),'\" -finalSetupScriptUrl \"',variables('finalSetupScriptUrl'),'\" -RunWindowsUpdate \"',variables('RunWindowsUpdate'),'\" -ContactEMailForLetsEncrypt \"',variables('ContactEMailForLetsEncrypt'),'\" -style \"',variables('style'),'\" -nchbranch \"',variables('nchbranch'),'\" -containerName \"',variables('containerName'),'\" -AddTraefik \"',variables('AddTraefik'),'\"')]"
+                }
             }
         }
     ],

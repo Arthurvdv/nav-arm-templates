@@ -23,6 +23,19 @@ Where
 
 **Note:** After opening the deployment URL, the Azure portal will prompt you for the values of the fields in the ARM template.
 
+## VM generation, OS and sizes
+
+- **Windows Server 2025** and **2022** deploy Gen2 images with **Trusted Launch** (Secure Boot + vTPM). **Windows Server 2019** stays on a Gen1 image.
+- The VM size list only contains current 4, 8 and 16 vCPU sizes (Dsv5, Dasv5, Dsv6, Dasv6, Dsv7, Dasv7, Esv5, Esv6, Easv6 and Easv7). The default is `Standard_D4s_v6`; `Standard_E4as_v6` (4 vCPU / 32 GB) gives more headroom. Not every size is available in every region.
+- v6/v7 sizes are Gen2 only and use an NVMe disk controller (set automatically). **Windows Server 2019 requires a v5 size.**
+- The extension command line, including passwords and keys, is passed via `protectedSettings`, so it is no longer readable from the VM's extension settings.
+
+getbcext only:
+- `StorageAccountType` now selects the OS disk type: `StandardSSD_LRS` (default), `Premium_LRS` or `Standard_LRS` (HDD).
+- `OsDiskSizeGB` sets the OS disk size (128 or 256 GB).
+- Accelerated networking and managed boot diagnostics are enabled, and the unused `storage<uniqueString>` storage account is no longer created.
+- Deleting the VM still leaves the OS disk, NIC and public IP behind (delete option Detach).
+
 ## Examples
 - getbc -> https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2Fnav-arm-templates%2Fmaster%2Fgetbc.json
 - buildagent -> https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2Fnav-arm-templates%2Fmaster%2Fbuildagent.json
