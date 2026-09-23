@@ -107,6 +107,18 @@ $WindowsProductName = $ComputerInfo.WindowsProductName
 
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Ssl3 -bor [System.Net.SecurityProtocolType]::Tls -bor [System.Net.SecurityProtocolType]::Ssl3 -bor [System.Net.SecurityProtocolType]::Tls11 -bor [System.Net.SecurityProtocolType]::Tls12
 
+# Extend C: into any unallocated space (marketplace images ship with a ~127 GB OS partition)
+try {
+    $osPartition = Get-Partition -DriveLetter C
+    $size = Get-PartitionSupportedSize -DiskNumber $osPartition.DiskNumber -PartitionNumber $osPartition.PartitionNumber
+    if ($size.SizeMax -gt ($osPartition.Size + 1MB)) {
+        Resize-Partition -DiskNumber $osPartition.DiskNumber -PartitionNumber $osPartition.PartitionNumber -Size $size.SizeMax
+    }
+}
+catch {
+    AddToStatus -color Red "Unable to extend OS partition: $($_.Exception.Message)"
+}
+
 $settingsScript = "c:\demo\settings.ps1"
 if (Test-Path $settingsScript) {
     . "$settingsScript"

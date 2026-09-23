@@ -72,8 +72,17 @@ if ($finalSetupScriptUrl) {
     $finalSetupScriptContent = Get-Content -Path $finalSetupScript -Encoding UTF8 -Raw
 }
 
-$size = (Get-PartitionSupportedSize -DiskNumber 0 -PartitionNumber 2)
-Resize-Partition -DiskNumber 0 -PartitionNumber 2 -Size $size.SizeMax
+# Extend C: into any unallocated space (marketplace images ship with a ~127 GB OS partition)
+try {
+    $osPartition = Get-Partition -DriveLetter C
+    $size = Get-PartitionSupportedSize -DiskNumber $osPartition.DiskNumber -PartitionNumber $osPartition.PartitionNumber
+    if ($size.SizeMax -gt ($osPartition.Size + 1MB)) {
+        Resize-Partition -DiskNumber $osPartition.DiskNumber -PartitionNumber $osPartition.PartitionNumber -Size $size.SizeMax
+    }
+}
+catch {
+    Write-Host "Unable to extend OS partition: $($_.Exception.Message)"
+}
 
 $setupAgentsScriptContent = ''
 if ($token) {
